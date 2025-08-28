@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kult: Divinity Lost – Generator kart (PL)</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --panel: #191a1f;
+      --accent: #e84545;
+      --muted: #9aa0a6;
+      --text: #f1f3f4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(232,69,69,.15), transparent 60%) ,
+                  radial-gradient(900px 700px at 120% 10%, rgba(120,120,255,.08), transparent 60%),
+                  var(--bg);
+      color: var(--text);
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p.subtitle { margin: 0 0 20px; color: var(--muted); }
+    .app {
+      max-width: 980px; margin: 0 auto; display: grid; gap: 16px;
+      grid-template-columns: 1fr; 
+    }
+    .controls, .card, .history {
+      background: var(--panel); border: 1px solid #22242a; border-radius: 14px; padding: 16px; box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+    .controls { display: grid; gap: 12px; align-items: center; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    label { font-size: 14px; color: var(--muted); }
+    select, button, input[type="checkbox"] { font: inherit; }
+    select, .btn {
+      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a2d36; background: #121318; color: var(--text);
+    }
+    .btn { background: linear-gradient(180deg, #2a2d36, #1b1d24); border: 1px solid #2f3440; cursor: pointer; }
+    .btn.primary { background: linear-gradient(180deg, #ff4d4d, #d43c3c); border-color: #b83333; color: white; }
+    .btn:active { transform: translateY(1px); }
+    .card { display: grid; gap: 8px; }
+    .card .tag { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; color: white; background: #3a3f4b; }
+    .card h2 { margin: 6px 0 0; font-size: 22px; color: var(--accent); }
+    .card pre { white-space: pre-wrap; line-height: 1.4; font-family: inherit; }
+    .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 8px; }
+    details { background: #14161b; border: 1px solid #22242a; border-radius: 10px; padding: 10px; }
+    summary { cursor: pointer; }
+    .history ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .history li { padding: 8px; border: 1px solid #23262f; border-radius: 10px; background: #13151a; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🔮 Kult: Divinity Lost – Generator kart</h1>
+      <p class="subtitle">Wylosuj kartę z talii (Wielkie Arkana + kolory: Czaszki, Róże, Klepsydry, Półksiężyce, Oczy). Teksty pochodzą z listy, którą dostarczyłeś.</p>
+    </header>
+
+    <section class="controls">
+      <div class="row">
+        <div>
+          <label for="filter">Filtr talii</label>
+          <select id="filter">
+            <option value="all">Cała talia</option>
+            <option value="Wielkie Arkana">Tylko Wielkie Arkana</option>
+            <option value="Czaszki">Czaszki</option>
+            <option value="Róże">Róże</option>
+            <option value="Klepsydry">Klepsydry</option>
+            <option value="Półksiężyce">Półksiężyce</option>
+            <option value="Oczy">Oczy</option>
+          </select>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="drawBtn" class="btn primary">Wylosuj kartę</button>
+        </div>
+      </div>
+      <div>
+        <label class="muted"><input type="checkbox" id="noReplace" /> Losuj bez powtórek (do wyczerpania filtrów)</label>
+      </div>
+      <details>
+        <summary>Opcje</summary>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn" id="resetBtn">Resetuj pulę (odśwież losowanie bez powtórek)</button>
+          <button class="btn" id="copyBtn">Kopiuj wynik do schowka</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="card" id="cardOut">
+      <span class="tag">Gotowy do losowania</span>
+      <h2>—</h2>
+      <pre class="muted">Kliknij „Wylosuj kartę”.</pre>
+    </section>
+
+    <section class="history">
+      <h3>Historia losowań</h3>
+      <ul id="history"></ul>
+    </section>
+
+    <p class="footer">Made for tabletop sessions • Offline, bez serwera • Możesz zapisać ten plik i używać lokalnie.</p>
+  </div>
+
+<script>
+// ======= Talia (na podstawie dostarczonej listy) =======
+const DECK = [
+  // Wielkie Arkana
+  { suit: 'Wielkie Arkana', name: '0. Anthropos', description: `Ta karta symbolizuje Przebudzonego Człowieka.
+Drogę do Przebudzenia i prawdziwie
+boskie pochodzenie ludzkości.
+Odkrywa powiązanie z Przebudzonym
+Człowiekiem, ścieżką do Przebudzenia
+lub fragmentem boskości, ukrytym lub
+obecnym w poprzednim życiu.
+Jest to jedna z trzech najpotężniejszych
+kart w całych Arkanach, obok Demiurga
+i Astarota, i zawsze odkrywa coś o wielkim
+znaczeniu.
+Kiedy wyciągnięta zostaje ta karta,
+można wyciągnąć kolejną i położyć na
+niej by ukazać manifestację jej mocy.` },
+  { suit: 'Wielkie Arkana', name: '1. Demiurg', description: `Ta karta symbolizuje Demiurga. Zaginionego
+władcę, stwórcę więzienia ludzkości.
+Odkrywa powiązanie z Demiurgiem,
+jednym z jego sług lub jego utraconą
+Cytadelą. Jest silnie połączona z potęgą
+Metropolis. Nieskończonym Miastem.
+Cytadelami Archontów. Martwą Cywilizacją.
+Sekretnymi Ścieżkami. Bestiami
+Metropolis. Ocalonymi. Ciszą i Śmiercią.
+Tajemnicami. Śpiącą Potęgą. Mrocznymi
+Skarbcami. Strażnikami. Uwięzionymi
+Bogami. Świątyniami. Ciemnymi zaułkami.
+Maszyną Śmierci i Odrodzenia.
+Jest to jedna z trzech najpotężniejszych
+kart w całych Arkanach, obok Anthroposa
+i Astarota, i zawsze odkrywa coś
+o wielkim znaczeniu.
+Kiedy wyciągnięta zostaje ta karta,
+można wyciągnąć kolejną i położyć na
+niej by ukazać manifestację jej mocy` },
+  { suit: 'Wielkie Arkana', name: '2. Astarot', description: `Ta karta symbolizuje Astarota, Władcę
+Inferno i Cień Demiurga. Istotę, która
+dąży do zostania nowym Demiurgiem,
+wiążąc Elizjum z Inferno w miejsce
+Potęg Metropolis.
+Mówi o bezpośrednim związku z Astarotem
+jako Siłą Wyższą i silnych powiązaniach
+z Wolą Inferno. Czarnym Słońcem.
+Cytadelami Aniołów Śmierci. Kolczastym
+Kołem. Tym Co Rodzi Się w Śmierci.
+Maszyną Śmierci i Odrodzenia. Pulsowaniem
+i Rośnięciem. Połączonymi Umysłami.
+Ścieżkami i Wrotami do Zniszczonych
+Światów. Wszelkimi Istniejącymi
+Cierpieniami. Obłąkanym Pięknem.
+Zwiększaną Mocą. Wyłomami w Iluzji.
+Umysłami za Zasłoną.
+Jest to jedna z trzech najpotężniejszych
+kart w całych Arkanach, obok Anthroposa
+i Demiurga, i zawsze odkrywa coś
+o wielkim znaczeniu.
+Kiedy wyciągnięta zostaje ta karta,
+można wyciągnąć kolejną i położyć na
+niej by ukazać manifestację jej mocy.` },
+  { suit: 'Wielkie Arkana', name: '3. Keter', description: `Ta karta symbolizuje Archonta Ketera
+i Zasadę Hierarchii.
+Wpływ Ketera przejawia się w hierarchicznych
+strukturach z panami i sługami,
+poszerzających się podziałach
+klasowych i arystokracji dysponującej
+władzą i bogactwem.
+Jego wpływy są najsilniejsze w strukturach
+z silnymi przywódcami; w rodzinach
+królewskich, wśród Kościoła katolickiego,
+szefów korporacji i rządzących
+państwami autorytarnymi jak Chiny czy
+Korea Północna.
+Karta wskazuje na połączenie lub wrogość
+wobec Archonta i/lub jego Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '4. Chochma', description: `Ta karta symbolizuje Archonta Chochmę
+i Zasadę Poddaństwa.
+Wpływ Chochmy przejawia się w oddaniu
+przywódcom religijnym, męczeństwie,
+fanatyzmie, rządach teokratycznych
+i dogmatyzmie. Istnieje wszędzie
+tam, gdzie można znaleźć religię.
+Słudzy Chochmy mają silne wpływy na
+Bliskim Wschodzie, wielu imamów i rabinów
+jest liktorami. Archont posiada także
+dużą władzę nad Kościołem katolickim.
+Karta wskazuje na połączenie lub wrogość
+wobec Archonta i/lub jego Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '5. Bina', description: `Ta karta symbolizuje Archontkę Binę
+i Zasadę Wspólnoty.
+Wpływ Biny przejawia się we władzy
+rodziny nad jednostką, podejrzliwości
+wobec rządu i innych władz nie będących
+rodem, silnych tradycjach i braku
+zaufania do obcych.
+Jej uścisk jest mocny wszędzie tam,
+gdzie silne są więzi rodzinne, w tym na
+Bliskim Wschodzie, w Afryce, Europie
+Wschodniej, Ameryce Łacińskiej, Chinach
+i południowych Stanach Zjednoczonych.
+Jej wpływy ponownie zwiększają
+się w Rosji. Bina jest boginią czczoną
+przez Romów.
+Karta wskazuje na połączenie lub wrogość
+wobec Archontki i/lub jej Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '6. Chesed', description: `Ta karta symbolizuje Archonta Cheseda
+i Zasadę Bezpieczeństwa.
+Wpływ Cheseda przejawia się w ludziach
+pragnących bezpieczeństwa, poczucia
+opieki i ochrony przed niebezpieczeństwami,
+zachęcaniu do przyjaznych
+zachowań i obrony przed nieznanym.
+Dawniej sługi Cheseda można było
+znaleźć wśród szczodrych szlachciców,
+mnichów, mądrych kobiet z lasu, lekarzy
+szukających lekarstw na zarazy, organizacji
+pomocowych, fundacji dobroczynnych
+i serdecznych ludzi. Obecnie jego
+moc osłabła.
+Karta wskazuje na połączenie lub wrogość
+wobec Archonta i/lub jego Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '7. Gewura', description: `Ta karta symbolizuje Archonta Gewurę
+i Zasadę Prawa.
+Wpływ Gewury tworzy instytucje biurokratyczne,
+surowsze prawa, zwiększoną
+obecność policji i kontrolę nad obywatelami.
+Znajdujący się pod jego wpływem
+ludzie poddają się władzy, zwykle ze
+strachu przed chaosem.
+Archont ma silny wpływ na wszelkiego
+rodzaju systemy prawne. Jego liktorzy
+to często sędziowie, szefowie policji
+i prawnicy. Można ich spotkać wszędzie
+tam, gdzie istnieje rozwinięta biurokracja
+i gdzie prawa oraz przepisy wykorzystywane
+są do kontroli populacji.
+Karta wskazuje na połączenie lub wrogość
+wobec Archonta i/lub jego Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '8. Tiferet', description: `Ta karta symbolizuje Archontkę Tiferet
+i Zasadę Powabu.
+Wpływ Tiferet rozpala maniakalną żądzę
+piękna i adoracji, która musi zostać
+zaspokojona wszelkimi sposobami.
+Celebryci są czczeni niczym prorocy,
+a szare masy marnują czas w Internecie
+oraz przed telewizorami i pogardzają
+wszystkimi, którzy nie przystają do
+„norm” społecznych.
+Jej wpływy są olbrzymie we wszystkich
+warstwach społecznych, ale przede
+wszystkim w mediach, przemyśle reklamowym
+i w Internecie.
+Karta wskazuje na połączenie lub wrogość
+wobec Archontki i/lub jej Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '9. Necach', description: `Ta karta symbolizuje Archonta Necacha
+i Zasadę Zwycięstwa.
+Wpływ Necacha wzmacnia patriotyzm
+i nacjonalizm, jednoczy społeczeństwa
+przeciwko wspólnym wrogom i karmi
+mentalność my kontra oni. Prawi niszczą
+wszystko co im zagraża, wzmacniają siły
+zbrojne, uzasadniają przemoc większym
+dobrem i zachęcają innych do zbrojeń.
+Jego wpływy są najsilniejsze w siłach
+zbrojnych, szkołach wojskowych,
+prywatnych armiach, pośród producentów
+uzbrojenia, lobbystów i najemników.
+Największą władzę dzierży
+w Ameryce Północnej.
+Karta wskazuje na połączenie lub wrogość
+wobec Archonta i/lub jego Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '10. Hod', description: `Ta karta symbolizuje Archonta Hoda
+i Zasadę Honoru.
+Wpływ Hod łączy honor z prestiżem,
+czyni status w grupie najważniejszym
+i przedkłada osobistą zemstę ponad
+prawo. Związani honorem oczekują szacunku
+za swoje oddanie żelaznym zasadom
+i poddają ostracyzmowi każdego,
+kto splamił swój honor i nie dotrzymał
+licznych, związanych z nim obowiązków.
+Jego Zasada jest najsilniejsza w miejscach
+i społecznościach gdzie kodeks
+honorowy jest wciąż bardzo istotny,
+na Bliskim Wschodzie i w azjatyckich
+krajach takich jak Indie, Pakistan
+i Japonia. Słudzy i ideologia Hoda są
+także silne w dużej części Afryki Północnej,
+choć coraz częściej poddaje się je
+w wątpliwość.
+Karta wskazuje na połączenie lub wrogość
+wobec Archonta i/lub jego Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '11. Jesod', description: `Ta karta symbolizuje Archonta Jesoda
+i Zasadę Pazerności.
+Jesod wpływa na społeczeństwa poprzez
+chciwość, kapitalizm, ekonomię, szał
+konsumencki i potęgę korporacji, a także
+dzięki promocji szacunku wobec bogactwa
+jako oznaki inteligencji i ambicji.
+Zachęca do pogardy wobec biednych,
+którym przypisuje się głupotę i lenistwo
+oraz wspiera dekompozycję instytucji
+opieki społecznej.
+Archont kontroluje dużą część Zachodu,
+a ostatnio także Chin.
+Karta wskazuje na połączenie lub wrogość
+wobec Archonta i/lub jego Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '12. Malhut', description: `Ta karta symbolizuje Archontkę
+Malhut i Zasadę Przebudzenia
+(dawniej: Konformizmu).
+Poprzez swoje wpływy, Malhut usiłuje
+uwolnić ludzi z ich więzienia, niszcząc
+Iluzję i odsłaniając inne światy. Inspiruje
+magów i naukowców do eksperymentów
+z nieznanym oraz poszukiwań ich
+utraconej boskości (Dawniej, Malhut
+uosabiała Konformizm i naturalne
+cykle, które widzimy w naszym świecie
+i więzieniu).
+Malhut największe wpływy ma wśród
+magów i naukowców. Jej twierdzą jest
+Europa oraz część Ameryki Północnej
+i Azji. Podczas Złotego Wieku Islamu
+miała wyznawców na Bliskim Wschodzie
+i Afryce Północnej.
+Karta wskazuje na połączenie lub wrogość
+wobec Archontki i/lub jej Zasady.
+Związek może występować w przeszłości,
+teraźniejszości lub dotyczyć czegoś,
+co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '13. Taumiel', description: `Ta karta symbolizuje Anioła Śmierci
+Taumiela i Zasadę Potęgi.
+Wpływ Taumiela przejawia się głodem
+władzy, korupcją, dyktaturą, faszyzmem,
+intrygami, powstaniami, opresją, bezwzględnością
+i totalitaryzmem - załamaniem
+solidarności i zaufania.
+Zasada Taumiela najsilniejsza jest tam,
+gdzie istnieją hierarchie i struktury
+władzy z wyraźnymi podziałami. Rządy
+w stanie politycznego przesilenia, przemysł
+rozrywkowy, świat sportu i przestępczość
+zorganizowana, organizacje
+neonazistowskie, Wall Street i inne
+giełdy, wielkie korporacje i tak dalej, aż
+do gangów ulicznych i klas szkolnych.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '14. Chaigidiel', description: `Ta karta symbolizuje Anioła Śmierci Chaigidiela
+i Zasadę Krzywdy.
+Wpływ Chaigidiela przejawia się maltretowaniem
+nieletnich, wypaczeniem miłości
+i opieki rodzicielskiej, zapomnianymi
+i zaginionymi dziećmi, sierotami z ulicy
+i degradacją systemów szkolnictwa.
+Wpływ Chaigidiela jest najsilniejszy
+wśród członków rodzin wielopokoleniowych,
+ale jest on też aktywny w grupach
+pedofilskich, sierocińcach, ośrodkach
+młodzieżowych, pośród handlarzy
+ludźmi, na nielegalnych stronach pornograficznych
+i wśród organizacji religijnych
+na całym świecie.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '15. Satariel', description: `Ta karta symbolizuje Anielicę Śmierci Satariel
+i Zasadę Wykluczenia.
+Wpływ Satariel niesie ze sobą dysmorfofobię,
+samotność, beznadzieję, pogardę
+wobec „normalnych”, samozniszczenie,
+strach, depresję, samobójstwa, masakry
+i strzelaniny w szkołach oraz grupy outsiderów
+inspirujących się wzajemnie do
+brutalnych czynów.
+Niszczycielska wola Satariel wyszukuje
+tych, którzy czują się odrzuceni i tych,
+których życie pozbawione jest sensu.
+Można ich znaleźć wszędzie.
+Karta wskazuje na połączenie lub wrogość
+wobec Anielicy Śmierci i/lub jej
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '16. Gamchikot', description: `Ta karta symbolizuje Anioła Śmierci Gamchikota
+i Zasadę Strachu.
+Wpływ Gamchikota rozbudza strach
+wobec „innego”, wzmacniając nieufność
+i obwiniając różne grupy etniczne,
+religijne i polityczne o problemy społeczne.
+Tworzone są fałszywe narracje,
+rozprzestrzeniane przez media, plotki
+i sfabrykowane dowody, a heroldowie
+szepczą o tym jak wszystkie trudności
+zniknęłyby, gdyby tylko „inni” zostali
+ukarani lub zniknęli.
+Wpływ Anioła Śmierci jest najsilniejszy
+w klasie średniej i miejscach gdzie
+dominują konserwatywne wartości. Ku
+Klux Klan, fanatyczni działacze pro-life,
+kluby zmartwionych rodziców, formacje
+paramilitarne dokonujące ludobójstw,
+wszelkiego rodzaju neofaszyści oraz
+patriarchalne struktury obawiające się
+zepsucia młodych liberalnymi wartościami
+to grupy, które mogą dostać się
+pod wpływy tego Anioła Śmierci.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '17. Golab', description: `Ta karta symbolizuje Anioła Śmierci Golaba
+i Zasadę Cierpienia.
+Wpływ Golaba zwiększa sadyzm
+społeczeństw, dając ludziom przyjemność
+z zadawania innym bólu lub
+doświadczania go samemu. Przestępcy
+są publicznie torturowani, w ukrytych
+schronieniach w życie wcielane są najbardziej
+sadystyczne pomysły, zabójcy
+pozostawiają ślad okaleczonych zwłok.
+Obecność Golaba najsilniejsza jest
+tam, gdzie ludzie poddawani są sadyzmowi.
+Można go znaleźć w grupach
+przestępczych, wojsku, organizacjach
+terrorystycznych, więzieniach i szpitalach
+psychiatrycznych.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '18. Togarini', description: `Ta karta symbolizuje Anioła Śmierci Togariniego
+i Zasadę Popędu.
+Wpływ Togariniego karmi szaleńczą
+kreatywność, która wypacza rzeczywistość,
+rozrywając piękno na strzępy.
+Obłąkane dzieła sztuki otwierają portale
+do Inferno, magowie eksperymentują na
+granicy życia i śmierci, a sama śmierć
+działa nieprzewidywalnie - sprawiając,
+że dusze wiążą się z gnijącymi
+zwłokami lub straszą żyjących jako
+spaczone zjawy.
+Wpływ tego Anioła Śmierci jest najsilniejszy
+pośród artystów, magów, ludzi
+zajmujących się modyfikacją ciał, oraz
+zmysłów i wyobraźni oczarowywanych
+przez mrok i groteskę.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '19. Harab Serap', description: `Ta karta symbolizuje Anioła Śmierci Haraba
+Serapa i Zasadę Konfliktu.
+Wpływy Haraba Serapa rozsiewają
+niekontrolowany szał, żądzę krwi i niepowstrzymaną
+przemoc. Gangi strzelają
+do siebie w miejscach publicznych,
+policjanci tłuką podejrzanych na śmierć,
+chuligani wdzierają się na stadiony, tłum
+linczuje swoje ofiary, drobne spory eskalują
+w krwawe bójki, a zwykli ludzie nieustannie
+oscylują na granicy wybuchu.
+Anioł Śmierci największe wpływy ma
+w strefach wojny, terytoriach gangów, na
+Bliskim Wschodzie, w Afryce i części Azji.
+Wiele jego sług to żołnierze i członkowie
+gangów, ale Zasada Haraba Serapa może
+obudzić się w każdym z nas.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '20. Samael', description: `Ta karta symbolizuje Anioła Śmierci Samaela
+i Zasadę Zemsty.
+Wpływy Samaela potęgują paranoję,
+mściwość i obsesję na punkcie niesprawiedliwości,
+gdy ludzie brutalnie mszczą
+się za nieistniejące zniewagi, zazdrośni
+partnerzy zabijają ukochanych za wyimaginowane
+zdrady, a terroryści krwawo
+karzą swoich wrogów.
+Anioł Śmierci ma silną władzę nad
+ludźmi gorliwie pałającymi zemstą, ale
+też w organizacjach o ścisłych kodeksach
+honorowych i zdolności do osiągania
+celów przemocą, takich jak mafia,
+gangi, organizacje terrorystyczne i niektóre
+kulty. Magowie niekiedy poszukują
+wiedzy o mrocznym umyśle Samaela.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '21. Gamaliel', description: `Ta karta symbolizuje Anioła Śmierci Gamaliela
+i Zasadę Żądzy.
+Gamaliel popycha społeczeństwo ku
+hiperseksualizacji i uprzedmiotowieniu,
+gdzie tłumy dokonują gwałtów zbiorowych,
+ofiary zmusza się do prostytucji,
+pornografia staje się coraz bardziej ostra
+i perwersyjna, celebranci zbierają się
+w klubach i tajnych stowarzyszeniach by
+dokonywać orgii, a ludzie poddają się
+bezmyślnym żądzom bez oglądania się
+na konsekwencje.
+Wpływ Anioła Śmierci jest silny w przemyśle
+pornograficznym, obsłudze seks
+kamerek, domach publicznych, wśród
+gwałcicieli, i w głębi duszy, do pewnego
+stopnia każdego z nas.
+Karta wskazuje na połączenie lub wrogość
+wobec Anioła Śmierci i/lub jego
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+  { suit: 'Wielkie Arkana', name: '22. Nahemot', description: `Ta karta symbolizuje Anielicę Śmierci Nahemot
+i Zasadę Rozdźwięku.
+Wpływ Nahemot wypacza środowisko
+naturalne, sprawiając że staje się groźne
+i niebezpieczne, przejawia się w pożarach
+lasów, wyciekach ropy, zatrutych
+strumieniach i źródłach, zmutowanych
+zwierzętach, potężnych burzach, mrozach
+i falach upałów, ulewnych deszczach,
+trzęsieniach ziemi, falach tsunami,
+kanibalistycznych plemionach, zniekształconych
+płodach i złowieszczych
+zaćmieniach. Wywraca on świat na nice,
+siejąc strach poprzez zniszczenie spokoju
+i normalności.
+Jej wpływ jest najsilniejszy w miejscach
+gdzie ludzie obawiają się i czczą naturę,
+a także w miejscach wycieków chemikaliów,
+strefach radioaktywnych, otwartych
+kanałach, kopalniach odkrywkowych,
+kompleksach przemysłowych i wysypiskach
+śmieci.
+Karta wskazuje na połączenie lub wrogość
+wobec Anielicy Śmierci i/lub jej
+Zasady. Związek może występować
+w przeszłości, teraźniejszości lub dotyczyć
+czegoś, co dopiero się wydarzy.` },
+
+  // Małe Arkana — Czaszki
+  { suit: 'Czaszki', name: '1. Metropolis', description: `Metropolis symbolizuje dawny dom
+ludzkości, Wieczne Miasto i centrum
+Maszynerii Demiurga.` },
+  { suit: 'Czaszki', name: '2. Zapomnienie', description: `Zapomnienie symbolizuje to, co zniknęło
+z pamięci. Jest silnie powiązane z cyklem
+odrodzenia i Lochami Zapomnienia
+w Metropolis.` },
+  { suit: 'Czaszki', name: '3. Pozostałości', description: `Pozostałości reprezentują to, co zostało po
+śmierci, zniszczeniu lub przemianie.` },
+  { suit: 'Czaszki', name: '4. Duch', description: `Duch to psyche, niematerialna esencja
+i maszyneria, które więżą boską duszę` },
+  { suit: 'Czaszki', name: '5. Przemiana', description: `Przemiana symbolizuje przejście z życia do
+śmierci lub do innej formy egzystencji.` },
+  { suit: 'Czaszki', name: '6. Ciało', description: `Ciało reprezentuje fizyczność jako powłokę
+pozostawianą po śmierci oraz więzienie
+duszy, która powinna zostać uwolniona.` },
+  { suit: 'Czaszki', name: '7. Broń', description: `Broń symbolizuje narzędzie niosące śmierć.
+To, co wymusza przemianę poprzez przemoc` },
+  { suit: 'Czaszki', name: '8. Cierpienie', description: `Cierpienie to ból towarzyszący śmierci
+i oczyszczeniu duszy. Jest silnie powiązane
+z cyklem odrodzenia i Lochami Cierpienia
+w Inferno.` },
+  { suit: 'Czaszki', name: '9. Inferno', description: `Inferno reprezentuje cień Metropolis. Wiele
+piekieł, Cytadele i kraina, z której wypływa
+wola Astarota.` },
+
+  // Małe Arkana — Róże
+  { suit: 'Róże', name: '1. Gaja', description: `Gaja to nieposkromiona dzicz, pierwotny
+głód i nieskrywane emocje` },
+  { suit: 'Róże', name: '2. Narodziny', description: `Narodziny symbolizują efekt namiętności,
+początek czegoś nowego, duszę wstępującą
+w ciało.` },
+  { suit: 'Róże', name: '3. Przetrwanie', description: `Przetrwanie reprezentuje parcie naprzód
+wbrew wszelkim przeciwnościom, przeżycie
+najlepiej przystosowanych i pokonywanie
+trudności dzięki żelaznej woli.` },
+  { suit: 'Róże', name: '4. Wzrost', description: `Wzrost to wszystko co się umacnia i rozrasta,
+czy to siła woli, ciało, czy natura.` },
+  { suit: 'Róże', name: '5. Drapieżnik', description: `Drapieżnik symbolizuje łowcę, głodnego
+i żerującego na słabszych.` },
+  { suit: 'Róże', name: '6. Rój', description: `Rój symbolizuje zbiorowisko, wspólny
+umysł, tłum pochłonięty emocjami i działający
+jak jeden organizm.` },
+  { suit: 'Róże', name: '7. Zwierzyna', description: `Zwierzyna symbolizuje ofiarę namiętności
+lub zagrożenie ze strony niebezpiecznego
+wroga lub sytuacji.` },
+  { suit: 'Róże', name: '8. Obsesja', description: `Obsesja reprezentuje moment w uścisku
+namiętności, pod której wpływem się znajdujesz
+zamiast ją kontrolować.` },
+  { suit: 'Róże', name: '9. Miłość', description: `Miłość to więź, która może być silniejsza niż
+śmierć. Może dać ci siłę i cel, ale też pociągnąć
+w głębiny i stać się twoją zagładą.` },
+
+  // Małe Arkana — Klepsydry
+  { suit: 'Klepsydry', name: '1. Achlys', description: `Achlys symbolizuje nicość, nieskończoność,
+pustkę, ale także zagładę duszy.` },
+  { suit: 'Klepsydry', name: '2. Przyszłość', description: `Przyszłość obraca się wokół wydarzeń, które
+jeszcze nie nadeszły i potencjału, który nie
+został jeszcze wyzwolony.` },
+  { suit: 'Klepsydry', name: '3. Przeszłość', description: `Przeszłość to wydarzenia, które miały już
+miejsce i powracają, lub mogą zostać
+odkryte jeśli poszukasz w odpowiednim
+Miejscu.` },
+  { suit: 'Klepsydry', name: '4. Przestrzeń', description: `Przestrzeń symbolizuje coś lub kogoś
+poruszającego się naprzód lub będącego
+wiecznie w ruchu.` },
+  { suit: 'Klepsydry', name: '5. Pogranicze', description: `Pogranicze to miejsce pomiędzy dwoma
+światami albo dwoma stanami istnienia,
+lub tam gdzie Czas i Przestrzeń dotykają
+fizycznego świata.` },
+  { suit: 'Klepsydry', name: '6. Ukryte', description: `Ukryte reprezentuje to, co niejasne i niewidoczne.
+Jest silnie powiązane z miastem
+Ktonor w Podświecie.` },
+  { suit: 'Klepsydry', name: '7. Labirynt', description: `Labirynt to plątanina przejść pełnych niebezpieczeństw
+i zamętu, jest silnie powiązany
+z Podświatem.` },
+  { suit: 'Klepsydry', name: '8. Rozdroże', description: `Rozdroże połączone jest z dwiema różnymi
+ścieżkami, wyborem który musi zostać
+dokonany i dwoma różnymi rezultatami.` },
+  { suit: 'Klepsydry', name: '9. Wrota', description: `Wrota symbolizują granicę lub przeszkodę,
+która musi być pokonana lub chroniona` },
+
+  // Małe Arkana — Półksiężyce
+  { suit: 'Półksiężyce', name: '1. Wir', description: `Sedno kreacji, snów i nieustannie zmieniający
+się chaos, który ma swoje źródło
+w głębinach Limbo.` },
+  { suit: 'Półksiężyce', name: '2. Kreacja', description: `Kreacja to boska moc kształtowania świata
+i przemiany myśli i snów w inspirację` },
+  { suit: 'Półksiężyce', name: '3. Rozpad', description: `Rozpad jest częścią naturalnego cyklu
+upadku i niszczenia idei, struktur, ciał, snów
+oraz całych światów.` },
+  { suit: 'Półksiężyce', name: '4. Transformacja', description: `Transformacja to stan radykalnej zmiany
+i metamorfozy.` },
+  { suit: 'Półksiężyce', name: '5. Połączenie', description: `Połączenie splecionych ze sobą struktur,
+umysłów lub czegoś co może ci w jakiś
+sposób przeszkodzić lub pomóc.` },
+  { suit: 'Półksiężyce', name: '6. Fuzja', description: `Scalenie idei, ciał i umysłów. Dwie rzeczy
+stają się jednością.` },
+  { suit: 'Półksiężyce', name: '7. Odbicie', description: `Odbicia mogą ujawnić prawdę, fałszować
+lub odzwierciedlać osobę lub miejsce` },
+  { suit: 'Półksiężyce', name: '8. Powtórzenie', description: `Powtórzenie może być niekończącą się
+pętlą, powracającym motywem, deja vu,
+albo czymś, przed czym nie ma ucieczki.` },
+  { suit: 'Półksiężyce', name: '9. Bezruch', description: `Bezruch symbolizuje apatię, spokój i sytuację,
+która zdaje się być niezmienna.` },
+
+  // Małe Arkana — Oczy
+  { suit: 'Oczy', name: '1. Elizjum', description: `Elizjum jest rdzeniem Iluzji i skomplikowanej
+maszynerii utrzymującej cię
+w kajdanach.` },
+  { suit: 'Oczy', name: '2. Uwięzienie', description: `Uwięzienie ciała, duszy i umysłu.` },
+  { suit: 'Oczy', name: '3. Wiara', description: `Wiara, która daje ci cel, ale czyni
+cię ślepym.` },
+  { suit: 'Oczy', name: '4. Rozproszenie', description: `Codzienne rozproszenie czyniące cię ślepym
+na Prawdę.` },
+  { suit: 'Oczy', name: '5. Podziały', description: `Podziały zajmują nas
+niekończącymi się zmaganiami.` },
+  { suit: 'Oczy', name: '6. Bunt', description: `Bunt i walka z panującym porządkiem` },
+  { suit: 'Oczy', name: '7. Szaleństwo', description: `Obłęd, który przytłacza i niszczy, lecz może
+także przynieść wiedzę.` },
+  { suit: 'Oczy', name: '8. Wizje', description: `Wizje, które mogą przynieść wiedzę,
+ale też sprowadzić na manowce.` },
+  { suit: 'Oczy', name: '9. Oświecenie', description: `Droga, która może poprowadzić cię ku
+Oświeceniu i Przebudzeniu` },
+];
+
+// ======= Logika =======
+const filterEl = document.getElementById('filter');
+const drawBtn = document.getElementById('drawBtn');
+const resetBtn = document.getElementById('resetBtn');
+const copyBtn  = document.getElementById('copyBtn');
+const noReplaceEl = document.getElementById('noReplace');
+const out = document.getElementById('cardOut');
+const historyEl = document.getElementById('history');
+
+let pool = [];
+let history = [];
+
+function rebuildPool() {
+  const f = filterEl.value;
+  pool = DECK.filter(c => f === 'all' ? true : c.suit === f);
+}
+
+function drawFromPool() {
+  if (pool.length === 0) return null;
+  const i = Math.floor(Math.random() * pool.length);
+  return pool.splice(i, 1)[0];
+}
+
+function drawWithReplace() {
+  const f = filterEl.value;
+  const source = DECK.filter(c => f === 'all' ? true : c.suit === f);
+  if (source.length === 0) return null;
+  const i = Math.floor(Math.random() * source.length);
+  return source[i];
+}
+
+function renderCard(card) {
+  if (!card) {
+    out.querySelector('span.tag').textContent = 'Brak kart w puli';
+    out.querySelector('h2').textContent = '—';
+    out.querySelector('pre').textContent = 'Zmień filtr lub zresetuj pulę.';
+    return;
+  }
+  out.querySelector('span.tag').textContent = card.suit;
+  out.querySelector('h2').textContent = card.name;
+  out.querySelector('pre').textContent = card.description.trim();
+}
+
+function pushHistory(card) {
+  history.unshift({ ts: new Date(), ...card });
+  if (history.length > 20) history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  historyEl.innerHTML = history.map(h => {
+    const time = h.ts.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    return `<li><div class="muted" style="font-size:12px">${time} • ${h.suit}</div><strong>${h.name}</strong></li>`;
+  }).join('');
+}
+
+function copyCurrent() {
+  const title = out.querySelector('h2').textContent;
+  const suit = out.querySelector('span.tag').textContent;
+  const desc = out.querySelector('pre').textContent;
+  const text = `${title}\n[${suit}]\n\n${desc}`;
+  navigator.clipboard.writeText(text).then(() => {
+    copyBtn.textContent = 'Skopiowano!';
+    setTimeout(() => (copyBtn.textContent = 'Kopiuj wynik do schowka'), 1200);
+  }).catch(() => {
+    alert('Nie udało się skopiować do schowka.');
+  });
+}
+
+// Init
+rebuildPool();
+
+// Events
+filterEl.addEventListener('change', () => {
+  rebuildPool();
+});
+
+drawBtn.addEventListener('click', () => {
+  const noReplace = noReplaceEl.checked;
+  const card = noReplace ? drawFromPool() : drawWithReplace();
+  renderCard(card);
+  if (card) pushHistory(card);
+});
+
+resetBtn.addEventListener('click', () => {
+  rebuildPool();
+  out.querySelector('span.tag').textContent = 'Zresetowano pulę';
+  out.querySelector('h2').textContent = '—';
+  out.querySelector('pre').textContent = 'Losowanie bez powtórek zaczyna od nowa.';
+});
+
+copyBtn.addEventListener('click', copyCurrent);
+</script>
+</body>
+</html>
